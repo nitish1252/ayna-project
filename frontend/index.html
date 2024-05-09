@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebSocket Chat</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    #chat-container {
+      max-width: 400px;
+      width: 100%;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    #messages {
+      list-style-type: none;
+      margin: 0;
+      padding: 0;
+      overflow-y: scroll;
+      max-height: 300px;
+    }
+    #messages li {
+      padding: 10px 15px;
+      border-radius: 5px;
+      margin-bottom: 10px;
+    }
+    #messages li.sent {
+      background-color: #dcf8c6;
+    }
+    #messages li.received {
+      background-color: #f0f0f0;
+    }
+    #messageInput {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      margin-bottom: 10px;
+    }
+    #sendButton {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      background-color: #007bff;
+      color: #fff;
+      cursor: pointer;
+    }
+    #sendButton:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div id="chat-container">
+    <ul id="messages"></ul>
+    <div style="display: flex;">
+      <input type="text" id="messageInput" placeholder="Type your message...">
+      <button id="sendButton">Send</button>
+    </div>
+  </div>
+
+  <script>
+    const socket = new WebSocket('ws://localhost:5002');
+
+    socket.addEventListener('open', function (event) {
+      console.log('Connected to WebSocket server');
+    });
+
+    socket.addEventListener('message', function(event) {
+    const reader = new FileReader();
+
+    reader.onload = function() {
+        const message = reader.result;
+        appendMessage('Received: ' + message, 'received');
+        saveMessage(message, 'received');
+    };
+
+    reader.readAsText(event.data);
+    });
+
+    socket.addEventListener('close', function (event) {
+      console.log('Connection to WebSocket server closed');
+    });
+
+    function saveMessage(messageText, type) {
+      const apiUrl = 'http://localhost:1337/api/messages';
+      const token = 'f3ac90f7e1294d9f905eadfb01292ef24853bc7612230487612f2344cd2f6196ec9b1e7da09f38985daeab7a186ac9aac0169e7ca7edab5757167c9e0b2973cd267f90bcc28a26a939aa15b36c9770954cf216ed48e6b49a951cdddf75ae2ce7b6e0baac7f89726d8db15aa7ba2240c02eb0c701caf8033dd642f81e9336ee17';
+      const data = {"data" : {
+        "message": messageText,
+        "type": type
+      }};
+
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then(data => console.log(data))
+      .catch(error => console.error('Error:', error));
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('messageInput');
+      const messageText = input.value.trim();
+
+      if (messageText !== '') {
+        // Append sent message to the message list
+        appendMessage('You: ' + messageText, 'sent');
+
+        saveMessage(messageText, 'sent');
+
+        // Send message to server
+        socket.send(messageText);
+
+        // Clear input field
+        input.value = '';
+      }
+    }
+
+    function appendMessage(message, type) {
+      const messages = document.getElementById('messages');
+      const messageElement = document.createElement('li');
+      messageElement.textContent = message;
+      messageElement.classList.add(type);
+      messages.appendChild(messageElement);
+      messages.scrollTop = messages.scrollHeight; // Scroll to bottom
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+
+      const apiUrl = 'http://localhost:1337/api/messages';
+      const token = 'f3ac90f7e1294d9f905eadfb01292ef24853bc7612230487612f2344cd2f6196ec9b1e7da09f38985daeab7a186ac9aac0169e7ca7edab5757167c9e0b2973cd267f90bcc28a26a939aa15b36c9770954cf216ed48e6b49a951cdddf75ae2ce7b6e0baac7f89726d8db15aa7ba2240c02eb0c701caf8033dd642f81e9336ee17';
+      let chatMessages = [];
+
+      fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then(data => {
+        chatMessages = data.data; 
+        console.log('Fetched messages:', chatMessages);
+        chatMessages.forEach((chatMessage) => {
+          const msg = chatMessage.attributes.type === 'sent' ? 'You: ' + chatMessage.attributes.message : 'Received: ' + chatMessage.attributes.message
+          appendMessage(msg, chatMessage.attributes.type);
+      });
+      })
+      .catch(error => console.error('Error:', error));
+    });
+
+    // Send message when Enter key is pressed
+    document.getElementById('messageInput').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      }
+    });
+
+    // Send message when Send button is clicked
+    document.getElementById('sendButton').addEventListener('click', sendMessage);
+  </script>
+</body>
+</html>
+
